@@ -23,6 +23,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           server-id: github
+          server-url: https://maven.pkg.github.com/doda25-team19
 
       - name: Run tests
         run: mvn -B test
