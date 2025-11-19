@@ -23,6 +23,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           server-id: github
+
       - name: Run tests
         run: mvn -B test
 
