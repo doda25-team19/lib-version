@@ -23,8 +23,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           server-id: github
+      - name: Run tests
+        run: mvn -B test
 
       - name: Deploy to GitHub Packages
-        run: mvn deploy
+        run: mvn -B deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
