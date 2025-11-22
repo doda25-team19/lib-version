@@ -34,18 +34,18 @@ jobs:
 
       - name: Prepare and Commit Stable Version
         run: |
-          # 1. Strip SNAPSHOT (0.0.1-SNAPSHOT -> 0.0.1)
+          # strip SNAPSHOT
           mvn versions:set -DremoveSnapshot -DgenerateBackupPoms=false
           
-          # 2. Commit this stable state (So the tag points to a clean pom)
+          # commit this stable state (So the tag points to a clean pom)
           VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           git add pom.xml
           git commit -m "chore: release v$VERSION [skip ci]"
           
-          # 3. Create the Tag locally
+          # create the Tag locally
           git tag "v$VERSION"
           
-          # 4. Save version to env for next steps
+          # save version to env for next steps
           echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Run Tests
@@ -58,7 +58,7 @@ jobs:
 
       - name: Bump to Next Snapshot
         run: |
-          # 1. Calculate next version
+          # calculate next version
           CURRENT=${{ env.RELEASE_VERSION }}
           IFS='.' read -r -a parts <<< "$CURRENT"
           MAJOR=${parts[0]}
@@ -69,14 +69,14 @@ jobs:
           
           echo "Bumping to $NEXT_SNAPSHOT"
           
-          # 2. Update POM
+          # update POM
           mvn versions:set -DnewVersion=$NEXT_SNAPSHOT -DgenerateBackupPoms=false
           
-          # 3. Commit the bump
+          # commit the bump
           git add pom.xml
           git commit -m "chore: bump to $NEXT_SNAPSHOT [skip ci]"
 
       - name: Push Changes (Commits & Tags)
         run: |
-          # Push the commits (stable & bump) and the tag atomically
+          # push the commits (stable & bump) and the tag atomically
           git push --atomic origin main "v${{ env.RELEASE_VERSION }}"
