@@ -6,12 +6,12 @@ on:
       - main
 
 permissions:
-  contents: write # to push tags and commits back to repo
+  contents: write
   packages: write
 
 jobs:
   stable-release:
-    # prevent infinite loops, don't run if the commit was made by this workflow
+    # Prevent infinite loops.
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
@@ -32,10 +32,21 @@ jobs:
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
 
-      - name: Prepare Release Version (Strip SNAPSHOT)
+      - name: Prepare and Commit Stable Version
         run: |
-          # Changes 0.0.1-SNAPSHOT -> 0.0.1
+          # 1. Strip SNAPSHOT (0.0.1-SNAPSHOT -> 0.0.1)
           mvn versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+          
+          # 2. Commit this stable state (So the tag points to a clean pom)
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          git add pom.xml
+          git commit -m "chore: release v$VERSION [skip ci]"
+          
+          # 3. Create the Tag locally
+          git tag "v$VERSION"
+          
+          # 4. Save version to env for next steps
+          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Run Tests
         run: mvn -B test
@@ -45,33 +56,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create and Push Git Tag
-        run: |
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "Released version: $VERSION"
-          git tag "v$VERSION"
-          git push origin "v$VERSION"
-
       - name: Bump to Next Snapshot
         run: |
-          # get current version
-          CURRENT=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          
-          # split version string
+          # 1. Calculate next version
+          CURRENT=${{ env.RELEASE_VERSION }}
           IFS='.' read -r -a parts <<< "$CURRENT"
           MAJOR=${parts[0]}
           MINOR=${parts[1]}
           PATCH=${parts[2]}
-          
-          # increment Patch
           NEW_PATCH=$((PATCH + 1))
           NEXT_SNAPSHOT="${MAJOR}.${MINOR}.${NEW_PATCH}-SNAPSHOT"
           
           echo "Bumping to $NEXT_SNAPSHOT"
+          
+          # 2. Update POM
           mvn versions:set -DnewVersion=$NEXT_SNAPSHOT -DgenerateBackupPoms=false
-
-      - name: Commit and Push Next Version
-        run: |
+          
+          # 3. Commit the bump
           git add pom.xml
-          git commit -m " chore: bump version to next snapshot [skip ci]"
-          git push
+          git commit -m "chore: bump to $NEXT_SNAPSHOT [skip ci]"
+
+      - name: Push Changes (Commits & Tags)
+        run: |
+          # Push the commits (stable & bump) and the tag atomically
+          git push --atomic origin main "v${{ env.RELEASE_VERSION }}"
