@@ -1,16 +1,18 @@
-name: Release to GitHub Packages
+name: Stable Release & Version Bump
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 permissions:
-  contents: read
+  contents: write # to push tags and commits back to repo
   packages: write
 
 jobs:
-  release:
+  stable-release:
+    # prevent infinite loops, don't run if the commit was made by this workflow
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
     steps:
@@ -25,10 +27,51 @@ jobs:
           server-id: github
           server-url: https://maven.pkg.github.com/doda25-team19
 
-      - name: Run tests
+      - name: Configure Git User
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+      - name: Prepare Release Version (Strip SNAPSHOT)
+        run: |
+          # Changes 0.0.1-SNAPSHOT -> 0.0.1
+          mvn versions:set -DremoveSnapshot -DgenerateBackupPoms=false
+
+      - name: Run Tests
         run: mvn -B test
 
-      - name: Deploy to GitHub Packages
+      - name: Deploy Stable Release
         run: mvn -B deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and Push Git Tag
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Released version: $VERSION"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Bump to Next Snapshot
+        run: |
+          # get current version
+          CURRENT=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          
+          # split version string
+          IFS='.' read -r -a parts <<< "$CURRENT"
+          MAJOR=${parts[0]}
+          MINOR=${parts[1]}
+          PATCH=${parts[2]}
+          
+          # increment Patch
+          NEW_PATCH=$((PATCH + 1))
+          NEXT_SNAPSHOT="${MAJOR}.${MINOR}.${NEW_PATCH}-SNAPSHOT"
+          
+          echo "Bumping to $NEXT_SNAPSHOT"
+          mvn versions:set -DnewVersion=$NEXT_SNAPSHOT -DgenerateBackupPoms=false
+
+      - name: Commit and Push Next Version
+        run: |
+          git add pom.xml
+          git commit -m " chore: bump version to next snapshot [skip ci]"
+          git push
