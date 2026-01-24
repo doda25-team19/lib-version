@@ -20,7 +20,7 @@ public class VersionUtil {
      */
     public String getVersion() {
         
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream("version.properties")) {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream("lib-version.properties")) {
 
             if (input == null) {
                 return "unknown";
