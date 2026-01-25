@@ -32,8 +32,6 @@ jobs:
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
 
-      # In your release workflow, BEFORE the removeSnapshot step:
-
       - name: Extract semantic version from current version
         run: |
           CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
