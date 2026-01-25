@@ -32,21 +32,23 @@ jobs:
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
 
-      - name: Prepare and Commit Stable Version
+      # In your release workflow, BEFORE the removeSnapshot step:
+
+      - name: Extract semantic version from current version
         run: |
-          # strip SNAPSHOT
-          mvn versions:set -DremoveSnapshot -DgenerateBackupPoms=false
-          
-          # commit this stable state (So the tag points to a clean pom)
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          SEMANTIC_VERSION=$(echo "$CURRENT_VERSION" | cut -d'-' -f1)
+          echo "Current version: $CURRENT_VERSION"
+          echo "Semantic version: $SEMANTIC_VERSION"
+          echo "RELEASE_VERSION=$SEMANTIC_VERSION" >> $GITHUB_ENV
+
+      - name: Set version to semantic version (removing pre-release suffix)
+        run: |
+          mvn versions:set -DnewVersion=${{ env.RELEASE_VERSION }}
           git add pom.xml
-          git commit -m "chore: release v$VERSION [skip ci]"
-          
-          # create the Tag locally
+          git commit -m "Release version ${{ env.RELEASE_VERSION }} [skip ci]"
+
           git tag "v$VERSION"
-          
-          # save version to env for next steps
-          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Run Tests
         run: mvn -B test
