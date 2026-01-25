@@ -6,16 +6,21 @@ on:
       - main # Do not run on main, strictly for feature branches
 
 permissions:
-  contents: read
+  contents: write # Allow pushing tags
   packages: write
 
 jobs:
   pre-release:
+    # Prevent infinite loops if the commit message contains [skip ci]
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Keep full history to tag correctly
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -25,14 +30,19 @@ jobs:
           server-id: github
           server-url: https://maven.pkg.github.com/doda25-team19
 
+      - name: Configure Git User
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
       - name: Generate Pre-release Version
         id: version
         run: |
           # get the base version from POM 
           BASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           
-          # strip '-SNAPSHOT'
-          CLEAN_VERSION=${BASE_VERSION%-SNAPSHOT}
+          # strip '-SNAPSHOT' or everything after the hyphen
+          CLEAN_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*//')
           
           # sanitize branch name (replace / with -)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
@@ -45,9 +55,20 @@ jobs:
           NEW_VERSION="${CLEAN_VERSION}-${SAFE_BRANCH_NAME}-${TIMESTAMP}"
           
           echo "new version will be: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           
           # set the version in pom.xml
           mvn versions:set -DnewVersion=$NEW_VERSION -DgenerateBackupPoms=false
+
+      - name: Commit and Tag Version
+        run: |
+          # Commit the POM change and Tag it. 
+          # [skip ci] is necessary to prevent this push from triggering the workflow again
+          git commit -am "chore: pre-release ${{ env.NEW_VERSION }} [skip ci]"
+          git tag "v${{ env.NEW_VERSION }}"
+          
+          # Push changes and tags atomically
+          git push --atomic origin HEAD "v${{ env.NEW_VERSION }}"
 
       - name: Run Tests
         run: mvn -B test
