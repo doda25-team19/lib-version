@@ -41,8 +41,8 @@ jobs:
           # get the base version from POM 
           BASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           
-          # strip '-SNAPSHOT'
-          CLEAN_VERSION=${BASE_VERSION%-SNAPSHOT}
+          # strip '-SNAPSHOT' or everything after the hyphen
+          CLEAN_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*//')
           
           # sanitize branch name (replace / with -)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
