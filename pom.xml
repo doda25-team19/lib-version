@@ -5,7 +5,7 @@
 
     <groupId>org.doda25.team19</groupId>
     <artifactId>lib-version</artifactId>
-    <version>0.0.5-fix-realease-workflow-20260125-225657</version>
+    <version>0.0.5-fix-realease-workflow-20260125-233328</version>
     <packaging>jar</packaging>
 
     <distributionManagement>
